@@ -1,17 +1,31 @@
 import React, { Component } from "react";
 import { getMovies } from "./../services/fakeMovieService";
-import Like from './common/like';
+import Pagination from "./common/pagination";
+import { paginate } from "./../utils/paginate";
+import ListGroup from "./common/listGroup";
+import { getGenres } from "../services/fakeGenreService";
+import MoviesTable from "./moviesTable";
+import _ from 'lodash';
 
 class Movies extends Component {
   state = {
-    movies: getMovies()
+    movies: [],
+    genres: [],
+    currentPage: 1,
+    pageSize: 4, 
+    sortColumn: {path:'title', order:'asc'}
   };
 
-  displayMessage() {
-    return this.state.movies.length === 0 ? (
+  componentDidMount() {
+    const genres = [{ _id: "", name: "All Genres" }, ...getGenres()];
+    this.setState({ genres, movies: getMovies() });
+  }
+
+  displayMessage(length) {
+    return length === 0 ? (
       <p>there are no movies in the database.</p>
     ) : (
-      <p>{`showing ${this.state.movies.length} in the database`}</p>
+      <p>{`showing ${length} in the database`}</p>
     );
   }
 
@@ -20,54 +34,70 @@ class Movies extends Component {
     this.setState({ movies });
   };
 
-  handleLike = (movie) =>{
+  handleLike = movie => {
     const movies = [...this.state.movies];
     const index = movies.indexOf(movie);
-    movies[index] = {...movies[index]};
+    movies[index] = { ...movies[index] };
     movies[index].liked = !movies[index].liked;
-    this.setState({movies});
-
+    this.setState({ movies });
   };
+
+  handlePageChange = page => {
+    this.setState({ currentPage: page });
+  };
+
+  handleGenreSelect = genre => {
+    this.setState({ selectedGenre: genre, currentPage: 1 });
+  };
+
+  handleSort = path=>{
+    this.setState({sortColumn: {path, order: 'asc'}});
+  };
+
   render() {
+    const {
+      pageSize,
+      currentPage,
+      sortColumn,
+      selectedGenre,
+      movies: allMovies
+    } = this.state;
+
+    const filtered =
+      selectedGenre && selectedGenre._id
+        ? allMovies.filter(m => m.genre._id === selectedGenre._id)
+        : allMovies;
+
+    const sorted = _.orderBy(filtered, [sortColumn.path], [sortColumn.order]);
+    const movies = paginate(sorted, currentPage, pageSize);
+
     return (
-      <React.Fragment>
-        {this.displayMessage()}
-        <table className="table">
-          <thead>
-            <th>Title</th>
-            <th>Genre</th>
-            <th>Stock</th>
-            <th>Rate</th>
-            <th></th>
-            <th />
-          </thead>
-          <tbody>
-            {this.state.movies.map(movie => (
-              <tr key={movie._id}>
-                <td>{movie.title}</td>
-                <td>{movie.genre.name}</td>
-                <td>{movie.numberInStock}</td>
-                <td>{movie.dailyRentalRate}</td>
-                <td>
-                  <Like liked={movie.liked}
-                        onClick={() => this.handleLike(movie)}  />
-                </td>
-                <td>
-                  <button
-                    className="btn btn-danger btn-sm"
-                    onClick={() => this.handleDelete(movie)}
-                  >
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </React.Fragment>
+      <div className="row">
+        <div className="col-3">
+          <ListGroup
+            items={this.state.genres}
+            selectedItem={this.state.selectedGenre}
+            onItemSelect={this.handleGenreSelect}
+          />
+        </div>
+        <div className="col">
+          {this.displayMessage(filtered.length)}
+          <MoviesTable
+            movies={movies}
+            onLike={this.handleLike}
+            onDelete={this.handleDelete}
+            onSort={this.handleSort}
+          />
+          <Pagination
+            itemsCount={filtered.length}
+            pageSize={pageSize}
+            onPageChange={this.handlePageChange}
+            currentPage={currentPage}
+          />
+        </div>
+      </div>
     );
   }
 }
 
 export default Movies;
-
